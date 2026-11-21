@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         WME 街道名稱快速輸入（繁中）
 // @namespace    https://greasyfork.org/
-// @version      0.1.3
+// @version      0.1.4
 // @author       Gaz
 // @license      MIT
 // @homepageURL  https://github.com/GazCore/wme-street-quick-input-zh-tw
 // @updateURL    https://raw.githubusercontent.com/GazCore/wme-street-quick-input-zh-tw/main/wme-street-quick-input.user.js
 // @downloadURL  https://raw.githubusercontent.com/GazCore/wme-street-quick-input-zh-tw/main/wme-street-quick-input.user.js
-// @description  在 Waze Map Editor 輸入街道名稱時，顯示 路/段/街/巷/弄/號 與數字快捷按鈕，減少打字
+// @description  在 Waze Map Editor 輸入街道名稱時，顯示 路/街/段/巷/弄、道路等級、方位與數字快捷按鈕，減少打字
 // @match        https://www.waze.com/*editor*
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*/editor*
@@ -18,12 +18,13 @@
 (function () {
   'use strict';
 
-  // 可自行增減按鈕
+  // 可自行增減按鈕：每一列是一個分類（label 為列標題，items 為按鈕）
   const ROWS = [
-    ['路', '街', '大道', '段', '巷', '弄', '號', '之'],
-    ['東', '西', '南', '北', '一', '二', '三', '四', '五'],
-    ['六', '七', '八', '九', '十', '市道', '縣道', '區道', '鄉道'],
-    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'],
+    { label: '類型', items: ['路', '街', '大道', '段', '巷', '弄'] },
+    { label: '等級', items: ['市道', '縣道', '區道', '鄉道'] },
+    { label: '方位', items: ['東', '西', '南', '北'] },
+    { label: '國字', items: ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'] },
+    { label: '數字', items: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'] },
   ];
 
   // 按鈕列位置：'right'（輸入框右側，預設，不會擋住下方的建議清單）
@@ -76,20 +77,27 @@
       background: '#fff',
       border: '1px solid #ccc',
       borderRadius: '8px',
-      padding: '4px',
+      padding: '4px 6px',
       boxShadow: '0 2px 8px rgba(0,0,0,.25)',
-      maxWidth: '360px',
+      maxWidth: '420px',
     });
 
     ROWS.forEach((row) => {
       const r = document.createElement('div');
-      r.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin:2px 0;';
-      row.forEach((label) => {
+      r.style.cssText = 'display:flex;align-items:center;gap:3px;margin:3px 0;';
+
+      const title = document.createElement('span');
+      title.textContent = row.label;
+      title.style.cssText =
+        'flex:0 0 32px;font-size:12px;color:#777;text-align:center;user-select:none;';
+      r.appendChild(title);
+
+      row.items.forEach((label) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.textContent = label;
         b.style.cssText =
-          'padding:3px 8px;font-size:14px;border:1px solid #bbb;border-radius:5px;background:#f4f6f8;cursor:pointer;';
+          'min-width:30px;padding:3px 6px;font-size:14px;text-align:center;border:1px solid #bbb;border-radius:5px;background:#f4f6f8;cursor:pointer;';
         // mousedown 時阻止預設，避免輸入框失去焦點
         b.addEventListener('mousedown', (e) => e.preventDefault());
         b.addEventListener('click', () => {

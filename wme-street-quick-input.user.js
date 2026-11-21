@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME 街道名稱快速輸入（繁中）
 // @namespace    https://greasyfork.org/
-// @version      0.1.2
+// @version      0.1.3
 // @author       Gaz
 // @license      MIT
 // @homepageURL  https://github.com/GazCore/wme-street-quick-input-zh-tw
@@ -22,7 +22,7 @@
   const ROWS = [
     ['路', '街', '大道', '段', '巷', '弄', '號', '之'],
     ['東', '西', '南', '北', '一', '二', '三', '四', '五'],
-    ['六', '七', '八', '九', '十', '中正', '中山', '縣道', '鄉道'],
+    ['六', '七', '八', '九', '十', '市道', '縣道', '區道', '鄉道'],
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'],
   ];
 

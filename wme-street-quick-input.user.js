@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME 街道名稱快速輸入（繁中）
 // @namespace    https://greasyfork.org/
-// @version      0.1.1
+// @version      0.1.2
 // @author       Gaz
 // @license      MIT
 // @homepageURL  https://github.com/GazCore/wme-street-quick-input-zh-tw
@@ -25,6 +25,11 @@
     ['六', '七', '八', '九', '十', '中正', '中山', '縣道', '鄉道'],
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'],
   ];
+
+  // 按鈕列位置：'right'（輸入框右側，預設，不會擋住下方的建議清單）
+  //            'above'（輸入框上方）、'below'（輸入框下方，會擋住建議清單）
+  const POSITION = 'right';
+  const GAP = 24; // 與輸入框的間距（px）
 
   // 判斷是否為街道名稱輸入框（依 placeholder 或所在標籤）
   const STREET_HINTS = ['輸入街道', 'street name', 'enter street'];
@@ -104,11 +109,29 @@
     currentInput = input;
     const rect = input.getBoundingClientRect();
     bar.style.display = 'block';
-    bar.style.left = Math.max(4, rect.left) + 'px';
-    // 預設顯示在輸入框下方；空間不足時改顯示在上方
+    const w = bar.offsetWidth;
     const h = bar.offsetHeight;
-    const below = rect.bottom + 4;
-    bar.style.top = (below + h > window.innerHeight ? Math.max(4, rect.top - h - 4) : below) + 'px';
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
+
+    let mode = POSITION;
+    // 右側空間不足時，改放在輸入框上方
+    if (mode === 'right' && rect.right + GAP + w > vw) mode = 'above';
+
+    let left, top;
+    if (mode === 'right') {
+      left = rect.right + GAP;
+      top = rect.top;
+    } else if (mode === 'above') {
+      left = rect.left;
+      top = rect.top - h - 4;
+    } else {
+      left = rect.left;
+      top = rect.bottom + 4;
+    }
+    bar.style.left = clamp(left, 4, Math.max(4, vw - w - 4)) + 'px';
+    bar.style.top = clamp(top, 4, Math.max(4, vh - h - 4)) + 'px';
   }
 
   function hideBar() {

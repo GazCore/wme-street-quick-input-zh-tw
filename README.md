@@ -33,6 +33,14 @@ const ROWS = [
 ];
 ```
 
+## 按鈕列位置
+
+預設顯示在輸入框**右側**，不會擋住下方的路名建議清單。可修改腳本開頭的 `POSITION`：
+
+- `'right'`：輸入框右側（預設；右側空間不足時自動改放上方）
+- `'above'`：輸入框上方
+- `'below'`：輸入框下方（會擋住建議清單）
+
 ## 已知限制
 
 - WME 的輸入框使用 Web Component（shadow DOM），腳本依 placeholder（`輸入街道` / `Enter street name`）辨識欄位。若 WME 改版導致按鈕未出現，請調整 `isStreetInput()` 或開 Issue 回報。

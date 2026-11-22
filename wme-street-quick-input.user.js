@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         WME 街道名稱快速輸入（繁中）
 // @namespace    https://greasyfork.org/
-// @version      0.1.5
+// @version      0.2.0
 // @author       Gaz
 // @license      MIT
 // @homepageURL  https://github.com/GazCore/wme-street-quick-input-zh-tw
 // @updateURL    https://raw.githubusercontent.com/GazCore/wme-street-quick-input-zh-tw/main/wme-street-quick-input.user.js
 // @downloadURL  https://raw.githubusercontent.com/GazCore/wme-street-quick-input-zh-tw/main/wme-street-quick-input.user.js
-// @description  在 Waze Map Editor 輸入街道名稱時，顯示 路/街/段/巷/弄、省縣市區鄉道、方位、國字數字、天干與數字快捷按鈕，減少打字
+// @description  在 WME 輸入街道名稱、盾形路牌文字與方向時，顯示對應的快捷按鈕（路街段巷弄、省縣市區鄉道、方位、數字、天干），減少打字
 // @match        https://www.waze.com/*editor*
 // @match        https://beta.waze.com/*editor*
 // @match        https://www.waze.com/*/editor*
@@ -18,38 +18,61 @@
 (function () {
   'use strict';
 
-  // 可自行增減按鈕：每個子陣列是一列，依分類排列
-  const ROWS = [
-    ['路', '街', '段', '巷', '弄'],
-    ['省道', '市道', '縣道', '區道', '鄉道'],
-    ['東', '西', '南', '北'],
-    ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'],
-    ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'],
-    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'],
-  ];
-
   // 按鈕列位置：'right'（輸入框右側，預設，不會擋住下方的建議清單）
-  //            'above'（輸入框上方）、'below'（輸入框下方，會擋住建議清單）
+  //            'above'（輸入框上方）、'below'（輸入框下方）
   const POSITION = 'right';
   const GAP = 24; // 與輸入框的間距（px）
 
-  // 判斷是否為街道名稱輸入框（依 placeholder 或所在標籤）
-  const STREET_HINTS = ['輸入街道', 'street name', 'enter street'];
+  // 可自行增減按鈕。每個版面對應一種輸入框：
+  //   hints：以輸入框的 placeholder 判斷（不分大小寫、部分符合即可）
+  //   rows ：每個子陣列是一列按鈕
+  const LAYOUTS = {
+    // 街道名稱
+    street: {
+      hints: ['輸入街道', 'street name', 'enter street'],
+      rows: [
+        ['路', '街', '段', '巷', '弄'],
+        ['省道', '市道', '縣道', '區道', '鄉道'],
+        ['東', '西', '南', '北'],
+        ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'],
+        ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'],
+        ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'],
+      ],
+    },
+    // 盾形路牌的「盾牌文字」
+    shield: {
+      hints: ['使用數字和字母', 'numbers and letters', 'letters and numbers'],
+      rows: [
+        ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'],
+        ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'],
+      ],
+    },
+    // 盾形路牌的「方向」
+    direction: {
+      hints: ['輸入方向', 'enter direction'],
+      rows: [['東', '西', '南', '北']],
+    },
+  };
 
-  let bar = null;
+  const bars = {}; // 依版面名稱快取已建立的按鈕列
+  let activeBar = null;
   let currentInput = null;
 
-  function isStreetInput(el) {
-    if (!el || el.tagName !== 'INPUT') return false;
-    const ph = (el.placeholder || '').toLowerCase();
-    if (STREET_HINTS.some((h) => ph.includes(h.toLowerCase()))) return true;
-    // 輸入框在 shadow DOM 內時，檢查宿主元素
+  function placeholderOf(el) {
+    const own = (el.placeholder || '').toLowerCase();
     const host = el.getRootNode && el.getRootNode().host;
-    if (host) {
-      const hph = (host.getAttribute('placeholder') || '').toLowerCase();
-      if (STREET_HINTS.some((h) => hph.includes(h.toLowerCase()))) return true;
+    const hostPh = host && host.getAttribute ? (host.getAttribute('placeholder') || '').toLowerCase() : '';
+    return own + ' ' + hostPh;
+  }
+
+  // 回傳此輸入框對應的版面名稱；不符合則回傳 null
+  function getLayoutName(el) {
+    if (!el || el.tagName !== 'INPUT') return null;
+    const ph = placeholderOf(el);
+    for (const [name, layout] of Object.entries(LAYOUTS)) {
+      if (layout.hints.some((h) => ph.includes(h.toLowerCase()))) return name;
     }
-    return false;
+    return null;
   }
 
   function insertText(input, text) {
@@ -68,12 +91,12 @@
     input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
   }
 
-  function buildBar() {
+  function buildBar(name) {
     const el = document.createElement('div');
-    el.id = 'wme-street-quick';
+    el.className = 'wme-street-quick';
     Object.assign(el.style, {
       position: 'fixed',
-      zIndex: 99999,
+      zIndex: 2147483000,
       display: 'none',
       background: '#fff',
       border: '1px solid #ccc',
@@ -83,7 +106,12 @@
       maxWidth: '420px',
     });
 
-    ROWS.forEach((row) => {
+    // 避免點擊按鈕列被對話框當成「點擊外部」而關閉
+    ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'click'].forEach((type) =>
+      el.addEventListener(type, (e) => e.stopPropagation())
+    );
+
+    LAYOUTS[name].rows.forEach((row) => {
       const r = document.createElement('div');
       r.style.cssText = 'display:flex;align-items:center;gap:3px;margin:3px 0;';
 
@@ -92,7 +120,7 @@
         b.type = 'button';
         b.textContent = label;
         b.style.cssText =
-          'min-width:30px;padding:3px 6px;font-size:14px;text-align:center;border:1px solid #bbb;border-radius:5px;background:#f4f6f8;cursor:pointer;';
+          'min-width:30px;padding:3px 6px;font-size:14px;text-align:center;border:1px solid #bbb;border-radius:5px;background:#f4f6f8;color:#222;cursor:pointer;';
         // mousedown 時阻止預設，避免輸入框失去焦點
         b.addEventListener('mousedown', (e) => e.preventDefault());
         b.addEventListener('click', () => {
@@ -107,13 +135,16 @@
     return el;
   }
 
-  function showBar(input) {
-    if (!bar) bar = buildBar();
+  function showBar(input, name) {
+    if (activeBar && activeBar !== bars[name]) activeBar.style.display = 'none';
+    if (!bars[name]) bars[name] = buildBar(name);
+    activeBar = bars[name];
     currentInput = input;
+
     const rect = input.getBoundingClientRect();
-    bar.style.display = 'block';
-    const w = bar.offsetWidth;
-    const h = bar.offsetHeight;
+    activeBar.style.display = 'block';
+    const w = activeBar.offsetWidth;
+    const h = activeBar.offsetHeight;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
@@ -133,27 +164,29 @@
       left = rect.left;
       top = rect.bottom + 4;
     }
-    bar.style.left = clamp(left, 4, Math.max(4, vw - w - 4)) + 'px';
-    bar.style.top = clamp(top, 4, Math.max(4, vh - h - 4)) + 'px';
+    activeBar.style.left = clamp(left, 4, Math.max(4, vw - w - 4)) + 'px';
+    activeBar.style.top = clamp(top, 4, Math.max(4, vh - h - 4)) + 'px';
   }
 
   function hideBar() {
-    if (bar) bar.style.display = 'none';
+    if (activeBar) activeBar.style.display = 'none';
+    activeBar = null;
     currentInput = null;
   }
 
   // focusin 是 composed 事件，可穿透 shadow DOM
   document.addEventListener('focusin', (e) => {
     const target = e.composedPath()[0];
-    if (isStreetInput(target)) showBar(target);
+    const name = getLayoutName(target);
+    if (name) showBar(target, name);
   });
 
   document.addEventListener('focusout', (e) => {
     const target = e.composedPath()[0];
-    if (target === currentInput) setTimeout(() => {
-      const active = (document.activeElement && document.activeElement.shadowRoot
-        ? document.activeElement.shadowRoot.activeElement
-        : document.activeElement);
+    if (target !== currentInput) return;
+    setTimeout(() => {
+      const ae = document.activeElement;
+      const active = ae && ae.shadowRoot ? ae.shadowRoot.activeElement : ae;
       if (active !== currentInput) hideBar();
     }, 150);
   });

@@ -65,4 +65,4 @@ const LAYOUTS = {
 
 ## 授權
 
-[MIT](LICENSE)
+[MIT](LICENSE) © Waze Community Taiwan.

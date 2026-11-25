@@ -47,7 +47,7 @@ WME 載入完成後，左側「Scripts」區會多一個**「街道文字快輸�
 
 ## 已知限制
 
-- WME 的輸入框使用 Web Component（shadow DOM），腳本依 placeholder（`輸入街道` / `Enter street name`）辨識欄位。若 WME 改版導致按鈕未出現，請調整 `isStreetInput()` 或開 Issue 回報。
+- WME 的輸入框使用 Web Component（shadow DOM），腳本依 placeholder（例如 `輸入街道`、`Enter street name`）辨識欄位。若 WME 改版導致按鈕未出現，請在腳本的 `DEFAULT_LAYOUTS` 中調整各版面的 `hints`，或開 Issue 回報。
 - 尚未在各版本 WME 上廣泛測試，歡迎回報結果。
 
 ## 回報問題

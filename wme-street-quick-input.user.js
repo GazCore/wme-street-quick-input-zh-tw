@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME 街道名稱快速輸入（繁中）
 // @namespace    https://greasyfork.org/
-// @version      0.3.0
+// @version      0.3.1
 // @author       Gaz
 // @license      MIT
 // @homepageURL  https://github.com/GazCore/wme-street-quick-input-zh-tw
@@ -217,14 +217,25 @@
     activeBar = null;
   }
 
-  function showBar(input, name) {
-    if (activeBar && activeBar !== bars[name]) activeBar.style.display = 'none';
-    if (!bars[name]) bars[name] = buildBar(name);
-    activeBar = bars[name];
-    currentInput = input;
+  // 取得真正擁有焦點（游標）的元素，會穿透 shadow DOM
+  function deepActiveElement() {
+    let a = document.activeElement;
+    while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement;
+    return a;
+  }
 
-    const rect = input.getBoundingClientRect();
-    activeBar.style.display = 'block';
+  // 文字游標是否仍在這個輸入框內（且輸入框還在畫面上）
+  function hasCaret(input) {
+    if (!input || !input.isConnected) return false;
+    const r = input.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return false;
+    return deepActiveElement() === input;
+  }
+
+  // 依目前輸入框位置擺放按鈕列
+  function positionBar() {
+    if (!activeBar || !currentInput) return;
+    const rect = currentInput.getBoundingClientRect();
     const w = activeBar.offsetWidth;
     const h = activeBar.offsetHeight;
     const vw = window.innerWidth;
@@ -251,10 +262,42 @@
     activeBar.style.top = clamp(top, 4, Math.max(4, vh - h - 4)) + 'px';
   }
 
+  // 檢查游標是否還在輸入框：不在就隱藏，在的話更新位置
+  function checkCaret() {
+    if (!currentInput) return;
+    if (!hasCaret(currentInput)) {
+      hideBar();
+      return;
+    }
+    positionBar();
+  }
+
+  let watchTimer = null;
+  function startWatch() {
+    if (watchTimer) return;
+    // 保險機制：輸入框被移除、對話框關閉等情況不一定會觸發 focusout
+    watchTimer = setInterval(checkCaret, 250);
+  }
+  function stopWatch() {
+    if (watchTimer) clearInterval(watchTimer);
+    watchTimer = null;
+  }
+
+  function showBar(input, name) {
+    if (activeBar && activeBar !== bars[name]) activeBar.style.display = 'none';
+    if (!bars[name]) bars[name] = buildBar(name);
+    activeBar = bars[name];
+    currentInput = input;
+    activeBar.style.display = 'block';
+    positionBar();
+    startWatch();
+  }
+
   function hideBar() {
     if (activeBar) activeBar.style.display = 'none';
     activeBar = null;
     currentInput = null;
+    stopWatch();
   }
 
   // ───────────── 側邊欄設定面板 ─────────────
@@ -382,18 +425,45 @@
     document.addEventListener('focusin', (e) => {
       const target = e.composedPath()[0];
       const name = getLayoutName(target);
-      if (name) showBar(target, name);
+      if (name) {
+        showBar(target, name);
+      } else if (currentInput) {
+        // 游標移到其他欄位
+        checkCaret();
+      }
     });
 
-    document.addEventListener('focusout', (e) => {
-      const target = e.composedPath()[0];
-      if (target !== currentInput) return;
-      setTimeout(() => {
-        const ae = document.activeElement;
-        const active = ae && ae.shadowRoot ? ae.shadowRoot.activeElement : ae;
-        if (active !== currentInput) hideBar();
-      }, 150);
+    // 游標離開輸入框：稍等焦點切換完成後再檢查
+    document.addEventListener('focusout', () => {
+      if (currentInput) setTimeout(checkCaret, 100);
     });
+
+    // 點擊其他地方（含地圖、側邊欄等不可聚焦的區域）：焦點變動後檢查
+    document.addEventListener(
+      'mousedown',
+      (e) => {
+        if (!currentInput) return;
+        if (activeBar && e.composedPath().includes(activeBar)) return; // 點按鈕列不處理
+        setTimeout(checkCaret, 50);
+      },
+      true
+    );
+
+    // 按 Esc、Tab 或切換視窗時也檢查
+    document.addEventListener(
+      'keydown',
+      (e) => {
+        if (!currentInput) return;
+        if (e.key === 'Escape') hideBar();
+        else if (e.key === 'Tab') setTimeout(checkCaret, 50);
+      },
+      true
+    );
+    window.addEventListener('blur', () => currentInput && setTimeout(checkCaret, 100));
+
+    // 視窗大小改變或捲動時，讓按鈕列跟著輸入框
+    window.addEventListener('resize', positionBar);
+    window.addEventListener('scroll', positionBar, true);
   }
 
   // SDK 初始化完成後，登記腳本並等待 WME 就緒（登入且地圖資料載入完成）
